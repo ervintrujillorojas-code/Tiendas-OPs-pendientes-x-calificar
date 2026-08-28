@@ -1,3 +1,8 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Calificación Jamar</title>
 <style>
   :root {
@@ -251,8 +256,9 @@
     border-radius: 3px;
     flex-shrink: 0;
   }
+  .legend-swatch.dot { border-radius: 50%; }
 
-  /* store bar chart */
+  /* store & summary bar charts */
   .bar-rows { display: flex; flex-direction: column; gap: 9px; }
   .bar-row {
     display: grid;
@@ -301,25 +307,77 @@
     text-align: center;
   }
 
-  /* class split bar */
-  .split-bar {
+  /* class donut chart */
+  .donut-wrap {
     display: flex;
-    height: 28px;
-    border-radius: 6px;
-    overflow: hidden;
-    gap: 2px;
+    align-items: center;
+    gap: 20px;
+    flex-wrap: wrap;
   }
-  .split-bar .segment { height: 28px; display: flex; align-items: center; }
-  .split-labels {
+  .donut-figure {
+    position: relative;
+    width: 148px;
+    height: 148px;
+    flex-shrink: 0;
+  }
+  .donut-center {
+    position: absolute;
+    inset: 0;
     display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+  }
+  .donut-center-value {
+    font-size: 24px;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+  }
+  .donut-center-label {
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .donut-legend {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    flex: 1;
+    min-width: 120px;
+  }
+  .donut-legend .row {
+    display: flex;
+    align-items: center;
     justify-content: space-between;
-    margin-top: 10px;
-    font-size: 12px;
+    gap: 10px;
+    font-size: 12.5px;
   }
-  .split-labels .item { display: flex; flex-direction: column; gap: 2px; }
-  .split-labels .item.right { text-align: right; align-items: flex-end; }
-  .split-labels .name { color: var(--text-secondary); font-weight: 500; }
-  .split-labels .count { font-weight: 700; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .donut-legend .name-wrap {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-weight: 500;
+  }
+  .donut-legend .swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+  .donut-legend .count {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* pareto chart */
+  .pareto-svg { width: 100%; height: auto; display: block; }
+  .pareto-note {
+    margin-top: 14px;
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .pareto-note strong { color: var(--text-primary); }
 
   .side-note {
     margin-top: 18px;
@@ -333,6 +391,52 @@
 
   /* table */
   .table-card { overflow: hidden; }
+  .table-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .table-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+    margin: 0;
+  }
+  .table-header-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+  .table-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .btn-download {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffffff;
+    background: var(--accent);
+    border: 1px solid transparent;
+    border-radius: 8px;
+    padding: 8px 14px;
+    height: 34px;
+    cursor: pointer;
+  }
+  .btn-download:hover { filter: brightness(1.07); }
+  .btn-download:disabled { opacity: 0.6; cursor: default; }
+  .btn-download .dl-icon { width: 14px; height: 14px; flex-shrink: 0; }
+  .dl-status {
+    font-size: 12px;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
   .table-scroll { overflow-x: auto; }
   table { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 760px; }
   thead th {
@@ -425,6 +529,8 @@
     .header-meta { text-align: left; }
   }
 </style>
+</head>
+<body>
 
 <div class="wrap">
 
@@ -486,8 +592,10 @@
       <div class="card panel">
         <p class="panel-title">Pedidos por clase</p>
         <p class="panel-sub">ZOPL vs. ZOPE</p>
-        <div class="split-bar" id="clase-bar"></div>
-        <div class="split-labels" id="clase-labels"></div>
+        <div class="donut-wrap">
+          <div class="donut-figure" id="clase-donut"></div>
+          <div class="donut-legend" id="clase-legend"></div>
+        </div>
       </div>
       <div class="card panel">
         <p class="panel-title">Resumen de antigüedad</p>
@@ -498,7 +606,31 @@
 
   </div>
 
+  <div class="card panel">
+    <p class="panel-title">Pareto de pedidos pendientes por tienda</p>
+    <p class="panel-sub">Barras: participación % de cada tienda sobre el total filtrado · línea: acumulado</p>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-swatch" style="background:var(--accent)"></span>Participación por tienda</span>
+      <span class="legend-item"><span class="legend-swatch dot" style="background:var(--clase-2)"></span>Acumulado</span>
+    </div>
+    <div id="pareto-chart"></div>
+    <p class="pareto-note" id="pareto-note"></p>
+  </div>
+
   <div class="card table-card">
+    <div class="table-header">
+      <div>
+        <h2>Detalle de pedidos</h2>
+        <span class="table-header-sub">Refleja los filtros y el orden aplicados en la tabla</span>
+      </div>
+      <div class="table-header-actions">
+        <span class="dl-status" id="dl-status"></span>
+        <button class="btn-download" id="btn-download" type="button">
+          <svg class="dl-icon" viewBox="0 0 16 16" fill="none" aria-hidden="true"><path d="M8 1.5v9M4.5 7l3.5 3.5L11.5 7M2.5 13.5h11" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Descargar Excel
+        </button>
+      </div>
+    </div>
     <div class="table-scroll">
       <table>
         <thead>
@@ -516,9 +648,12 @@
 
 <div id="tooltip" role="tooltip"></div>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 (function () {
   "use strict";
+
+  var SVG_NS = "http://www.w3.org/2000/svg";
 
   var RECORDS = [{"centro":"3000","tienda":"ALMACEN PRINCIPAL","seus":"01-2026-4576415","clase":"ZOPL","sap":"7004255884","fecha":"20260824"},{"centro":"3000","tienda":"ALMACEN PRINCIPAL","seus":"01-2026-4576706","clase":"ZOPE","sap":"7004256529","fecha":"20260827"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4574362","clase":"ZOPL","sap":"7004255520","fecha":"20260823"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4576668","clase":"ZOPL","sap":"7004256211","fecha":"20260824"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4578071","clase":"ZOPL","sap":"7004258075","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4578451","clase":"ZOPL","sap":"7004258141","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4578506","clase":"ZOPL","sap":"7004258212","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4578837","clase":"ZOPL","sap":"7004258592","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4578863","clase":"ZOPL","sap":"7004258562","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4578971","clase":"ZOPL","sap":"7004258732","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579088","clase":"ZOPL","sap":"7004258774","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579108","clase":"ZOPL","sap":"7004258788","fecha":"20260826"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579438","clase":"ZOPL","sap":"7004259157","fecha":"20260827"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579439","clase":"ZOPL","sap":"7004259156","fecha":"20260827"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579494","clase":"ZOPL","sap":"7004259233","fecha":"20260827"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579497","clase":"ZOPL","sap":"7004259235","fecha":"20260827"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579504","clase":"ZOPL","sap":"7004259236","fecha":"20260827"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579508","clase":"ZOPL","sap":"7004259245","fecha":"20260827"},{"centro":"3002","tienda":"ALMACEN JAMAR NORTE","seus":"95-2026-4579531","clase":"ZOPL","sap":"7004259274","fecha":"20260827"},{"centro":"3004","tienda":"ALMACEN SANTA MARTA","seus":"85-2026-4573680","clase":"ZOPL","sap":"7004253086","fecha":"20260821"},{"centro":"3004","tienda":"ALMACEN SANTA MARTA","seus":"85-2026-4575258","clase":"ZOPL","sap":"7004254695","fecha":"20260822"},{"centro":"3004","tienda":"ALMACEN SANTA MARTA","seus":"85-2026-4579195","clase":"ZOPL","sap":"7004258926","fecha":"20260827"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4504332","clase":"ZOPL","sap":"7004182272","fecha":"20260614"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4531963","clase":"ZOPL","sap":"7004209855","fecha":"20260712"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4557320","clase":"ZOPL","sap":"7004235846","fecha":"20260804"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4560228","clase":"ZOPL","sap":"7004238621","fecha":"20260807"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4569372","clase":"ZOPL","sap":"7004248278","fecha":"20260816"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4569602","clase":"ZOPL","sap":"7004248518","fecha":"20260816"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4572316","clase":"ZOPE","sap":"7004251544","fecha":"20260828"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4574777","clase":"ZOPE","sap":"7004254270","fecha":"20260828"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4576678","clase":"ZOPL","sap":"7004256214","fecha":"20260824"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4577511","clase":"ZOPE","sap":"7004257342","fecha":"20260828"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4577647","clase":"ZOPE","sap":"7004257877","fecha":"20260828"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4577674","clase":"ZOPE","sap":"7004257323","fecha":"20260828"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4577803","clase":"ZOPE","sap":"7004257514","fecha":"20260828"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4578308","clase":"ZOPE","sap":"7004258025","fecha":"20260828"},{"centro":"3007","tienda":"ALMACEN SAN FELIPE","seus":"67-2026-4579198","clase":"ZOPE","sap":"7004258938","fecha":"20260902"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4566189","clase":"ZOPE","sap":"7004252239","fecha":"20260828"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4574711","clase":"ZOPE","sap":"7004254184","fecha":"20260828"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4577601","clase":"ZOPE","sap":"7004257242","fecha":"20260828"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4577612","clase":"ZOPE","sap":"7004257243","fecha":"20260901"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4578990","clase":"ZOPE","sap":"7004258806","fecha":"20260901"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4579048","clase":"ZOPE","sap":"7004259310","fecha":"20260901"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4579204","clase":"ZOPE","sap":"7004258943","fecha":"20260901"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4579366","clase":"ZOPE","sap":"7004259323","fecha":"20260901"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4579662","clase":"ZOPE","sap":"7004259507","fecha":"20260904"},{"centro":"3009","tienda":"ALMACEN SINCELEJO","seus":"65-2026-4579744","clase":"ZOPE","sap":"7004259508","fecha":"20260904"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4573374","clase":"ZOPE","sap":"7004257301","fecha":"20260829"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4575522","clase":"ZOPE","sap":"7004258023","fecha":"20260829"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4575671","clase":"ZOPE","sap":"7004255155","fecha":"20260829"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4576414","clase":"ZOPE","sap":"7004256967","fecha":"20260829"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4577056","clase":"ZOPE","sap":"7004256629","fecha":"20260829"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4577214","clase":"ZOPE","sap":"7004256792","fecha":"20260829"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4577639","clase":"ZOPE","sap":"7004257296","fecha":"20260829"},{"centro":"3011","tienda":"ALMACEN MONTERIA","seus":"55-2026-4579624","clase":"ZOPE","sap":"7004259463","fecha":"20260829"},{"centro":"3020","tienda":"ALMACEN LA FLORIDA","seus":"B4-2026-4570549","clase":"ZOPL","sap":"7004249513","fecha":"20260817"},{"centro":"3020","tienda":"ALMACEN LA FLORIDA","seus":"B4-2026-4570562","clase":"ZOPL","sap":"7004249520","fecha":"20260817"},{"centro":"3020","tienda":"ALMACEN LA FLORIDA","seus":"B4-2026-4572169","clase":"ZOPL","sap":"7004251371","fecha":"20260819"},{"centro":"3021","tienda":"ALMACEN METROPOLITANO","seus":"B5-2026-4573208","clase":"ZOPE","sap":"7004253610","fecha":"20260827"},{"centro":"3021","tienda":"ALMACEN METROPOLITANO","seus":"B5-2026-4576412","clase":"ZOPE","sap":"7004255983","fecha":"20260827"},{"centro":"3021","tienda":"ALMACEN METROPOLITANO","seus":"B5-2026-4577185","clase":"ZOPE","sap":"7004256764","fecha":"20260827"},{"centro":"3021","tienda":"ALMACEN METROPOLITANO","seus":"B5-2026-4577396","clase":"ZOPE","sap":"7004257021","fecha":"20260827"},{"centro":"3021","tienda":"ALMACEN METROPOLITANO","seus":"B5-2026-4577553","clase":"ZOPE","sap":"7004257200","fecha":"20260827"},{"centro":"3021","tienda":"ALMACEN METROPOLITANO","seus":"B5-2026-4577730","clase":"ZOPE","sap":"7004257394","fecha":"20260827"},{"centro":"3021","tienda":"ALMACEN METROPOLITANO","seus":"B5-2026-4577885","clase":"ZOPE","sap":"7004257668","fecha":"20260827"},{"centro":"3022","tienda":"ALMACEN BOSA","seus":"H4-2026-4372544","clase":"ZOPE","sap":"7004048954","fecha":"20260205"},{"centro":"3023","tienda":"ALMACEN LAS AMERICAS","seus":"B9-2026-4579008","clase":"ZOPL","sap":"7004258704","fecha":"20260826"},{"centro":"3023","tienda":"ALMACEN LAS AMERICAS","seus":"B9-2026-4579015","clase":"ZOPL","sap":"7004258834","fecha":"20260826"},{"centro":"3029","tienda":"ALMACEN VALLEDUPAR","seus":"F6-2026-4579386","clase":"ZOPE","sap":"7004259118","fecha":"20260829"},{"centro":"3029","tienda":"ALMACEN VALLEDUPAR","seus":"F6-2026-4579549","clase":"ZOPE","sap":"7004259288","fecha":"20260829"},{"centro":"3029","tienda":"ALMACEN VALLEDUPAR","seus":"F6-2026-4579743","clase":"ZOPE","sap":"7004259756","fecha":"20260901"},{"centro":"3029","tienda":"ALMACEN VALLEDUPAR","seus":"F6-2026-4579811","clase":"ZOPE","sap":"7004259594","fecha":"20260829"},{"centro":"3030","tienda":"ALMACEN JAMAR NORTE BOGOTA","seus":"F7-2026-4575280","clase":"ZOPE","sap":"7004254752","fecha":"20260827"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4572357","clase":"ZOPE","sap":"7004253575","fecha":"20260827"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4573581","clase":"ZOPL","sap":"7004252936","fecha":"20260821"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4575412","clase":"ZOPE","sap":"7004254886","fecha":"20260903"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4576290","clase":"ZOPL","sap":"7004257632","fecha":"20260825"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4577206","clase":"ZOPE","sap":"7004257504","fecha":"20260903"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4577721","clase":"ZOPE","sap":"7004257352","fecha":"20260903"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4579918","clase":"ZOPL","sap":"7004259702","fecha":"20260827"},{"centro":"3033","tienda":"ALMACEN EL EDEN","seus":"H1-2026-4579929","clase":"ZOPL","sap":"7004259710","fecha":"20260827"},{"centro":"3034","tienda":"JAMAR CRA 30","seus":"H4-2026-4569617","clase":"ZOPL","sap":"7004248572","fecha":"20260816"},{"centro":"3034","tienda":"JAMAR CRA 30","seus":"H4-2026-4573614","clase":"ZOPE","sap":"7004253000","fecha":"20260827"},{"centro":"3034","tienda":"JAMAR CRA 30","seus":"H4-2026-4575599","clase":"ZOPL","sap":"7004255164","fecha":"20260823"},{"centro":"3034","tienda":"JAMAR CRA 30","seus":"H4-2026-4577148","clase":"ZOPL","sap":"7004256709","fecha":"20260824"}];
 
@@ -546,6 +681,9 @@
     if (dias <= 7) return "vencido_1_7";
     if (dias <= 30) return "vencido_8_30";
     return "critico";
+  }
+  function shortLabel(name) {
+    return name.replace(/^ALMACEN\s+/, "");
   }
 
   RECORDS.forEach(function (r) {
@@ -611,7 +749,6 @@
     function place(ev) {
       var rect = el.getBoundingClientRect();
       var x = ev.clientX !== undefined ? ev.clientX : rect.left + rect.width / 2;
-      var y = ev.clientY !== undefined ? ev.clientY : rect.top;
       tooltip.textContent = "";
       var strong = document.createElement("span");
       strong.className = "tt-value";
@@ -619,7 +756,7 @@
       tooltip.appendChild(strong);
       tooltip.appendChild(document.createTextNode(" " + labelText));
       tooltip.style.left = x + "px";
-      tooltip.style.top = (rect.top) + "px";
+      tooltip.style.top = rect.top + "px";
       tooltip.classList.add("visible");
     }
     el.addEventListener("mousemove", place);
@@ -627,6 +764,14 @@
     el.addEventListener("mouseleave", hideTooltip);
     el.addEventListener("focus", place);
     el.addEventListener("blur", hideTooltip);
+  }
+
+  function svgEl(tag, attrs) {
+    var el = document.createElementNS(SVG_NS, tag);
+    if (attrs) {
+      Object.keys(attrs).forEach(function (k) { el.setAttribute(k, attrs[k]); });
+    }
+    return el;
   }
 
   // ---------- sort state ----------
@@ -641,6 +786,7 @@
     { key: "bucket", label: "Estado" }
   ];
   var sortState = { key: "dias", dir: "desc" };
+  var lastRenderedRows = [];
 
   var theadRow = document.getElementById("table-head");
   COLUMNS.forEach(function (col) {
@@ -685,6 +831,18 @@
     return Math.round((n / total) * 100) + "%";
   }
 
+  function aggregateByStore(rows) {
+    var byStore = {};
+    rows.forEach(function (r) {
+      byStore[r.tienda] = byStore[r.tienda] || { tienda: r.tienda, total: 0, counts: { a_tiempo: 0, vencido_1_7: 0, vencido_8_30: 0, critico: 0 } };
+      byStore[r.tienda].total++;
+      byStore[r.tienda].counts[r.bucket]++;
+    });
+    var list = Object.keys(byStore).map(function (k) { return byStore[k]; });
+    list.sort(function (a, b) { return b.total - a.total; });
+    return list;
+  }
+
   // ---------- render ----------
   function render() {
     var filtered = applyFilters();
@@ -693,8 +851,9 @@
 
     renderKpis(filtered);
     renderStoreChart(filtered);
-    renderClaseChart(filtered);
+    renderClasePie(filtered);
     renderSummaryChart(filtered);
+    renderParetoChart(filtered);
     renderTable(filtered);
   }
 
@@ -711,7 +870,6 @@
 
     if (total) {
       var oldest = rows.reduce(function (a, b) { return b.dias > a.dias ? b : a; });
-      document.getElementById("kpi-antiguo").innerHTML = "";
       var val = document.getElementById("kpi-antiguo");
       val.textContent = "";
       val.appendChild(document.createTextNode(oldest.dias + " "));
@@ -732,14 +890,14 @@
     return counts;
   }
 
-  function makeBarRow(label, counts, total, maxTotal) {
+  function makeBarRow(fullLabel, counts, total, maxTotal) {
     var row = document.createElement("div");
     row.className = "bar-row";
 
     var lab = document.createElement("span");
     lab.className = "row-label";
-    lab.textContent = label;
-    lab.title = label;
+    lab.textContent = shortLabel(fullLabel);
+    lab.title = fullLabel;
     row.appendChild(lab);
 
     var track = document.createElement("div");
@@ -756,8 +914,8 @@
       seg.style.background = b.color;
       seg.style.flex = n + " 0 auto";
       seg.tabIndex = 0;
-      seg.setAttribute("aria-label", label + ": " + b.label + ", " + n + " pedidos");
-      attachTooltip(seg, b.label + " · " + label, String(n));
+      seg.setAttribute("aria-label", fullLabel + ": " + b.label + ", " + n + " pedidos");
+      attachTooltip(seg, b.label + " · " + fullLabel, String(n));
       fill.appendChild(seg);
     });
     track.appendChild(fill);
@@ -781,14 +939,7 @@
       el.appendChild(empty);
       return;
     }
-    var byStore = {};
-    rows.forEach(function (r) {
-      byStore[r.tienda] = byStore[r.tienda] || { total: 0, counts: { a_tiempo: 0, vencido_1_7: 0, vencido_8_30: 0, critico: 0 } };
-      byStore[r.tienda].total++;
-      byStore[r.tienda].counts[r.bucket]++;
-    });
-    var storeList = Object.keys(byStore).map(function (k) { return { tienda: k, total: byStore[k].total, counts: byStore[k].counts }; });
-    storeList.sort(function (a, b) { return b.total - a.total; });
+    var storeList = aggregateByStore(rows);
     var maxTotal = storeList[0].total;
     storeList.forEach(function (s) {
       el.appendChild(makeBarRow(s.tienda, s.counts, s.total, maxTotal));
@@ -835,10 +986,11 @@
     });
   }
 
-  function renderClaseChart(rows) {
-    var bar = document.getElementById("clase-bar");
-    var labels = document.getElementById("clase-labels");
-    bar.innerHTML = ""; labels.innerHTML = "";
+  function renderClasePie(rows) {
+    var figure = document.getElementById("clase-donut");
+    var legend = document.getElementById("clase-legend");
+    figure.innerHTML = "";
+    legend.innerHTML = "";
 
     var zopl = rows.filter(function (r) { return r.clase === "ZOPL"; }).length;
     var zope = rows.filter(function (r) { return r.clase === "ZOPE"; }).length;
@@ -849,40 +1001,234 @@
       { key: "ZOPE", n: zope, color: "var(--clase-2)" }
     ];
 
-    classes.forEach(function (c) {
-      if (!c.n) return;
-      var seg = document.createElement("div");
-      seg.className = "segment";
-      seg.style.background = c.color;
-      seg.style.flex = c.n + " 0 auto";
-      seg.tabIndex = 0;
-      seg.setAttribute("aria-label", c.key + ": " + c.n + " pedidos");
-      attachTooltip(seg, c.key, c.n + " (" + fmtPct(c.n, total) + ")");
-      bar.appendChild(seg);
-    });
-    if (!total) {
-      var seg2 = document.createElement("div");
-      seg2.className = "segment";
-      seg2.style.background = "var(--grid)";
-      seg2.style.width = "100%";
-      bar.appendChild(seg2);
-    }
+    var size = 148, cx = size / 2, cy = size / 2, r = 56, sw = 26, gap = 2;
+    var circumference = 2 * Math.PI * r;
 
-    classes.forEach(function (c, i) {
-      var item = document.createElement("div");
-      item.className = "item" + (i === 1 ? " right" : "");
-      var name = document.createElement("span");
-      name.className = "name";
-      name.textContent = c.key;
+    var svg = svgEl("svg", { viewBox: "0 0 " + size + " " + size, width: size, height: size, role: "img", "aria-label": "Distribución de pedidos por clase" });
+
+    if (!total) {
+      var bg = svgEl("circle", { cx: cx, cy: cy, r: r, fill: "none" });
+      bg.style.stroke = "var(--grid)";
+      bg.style.strokeWidth = sw;
+      svg.appendChild(bg);
+    } else {
+      var offset = 0;
+      classes.forEach(function (c) {
+        if (!c.n) return;
+        var len = (c.n / total) * circumference;
+        var drawLen = Math.max(len - gap, 0.01);
+        var arc = svgEl("circle", {
+          cx: cx, cy: cy, r: r, fill: "none",
+          "stroke-dasharray": drawLen + " " + (circumference - drawLen),
+          "stroke-dashoffset": -(offset + gap / 2),
+          transform: "rotate(-90 " + cx + " " + cy + ")"
+        });
+        arc.style.stroke = c.color;
+        arc.style.strokeWidth = sw;
+        arc.tabIndex = 0;
+        arc.setAttribute("aria-label", c.key + ": " + c.n + " pedidos, " + fmtPct(c.n, total));
+        attachTooltip(arc, c.key, c.n + " (" + fmtPct(c.n, total) + ")");
+        svg.appendChild(arc);
+        offset += len;
+      });
+    }
+    figure.appendChild(svg);
+
+    var center = document.createElement("div");
+    center.className = "donut-center";
+    var val = document.createElement("span");
+    val.className = "donut-center-value";
+    val.textContent = total;
+    var lab = document.createElement("span");
+    lab.className = "donut-center-label";
+    lab.textContent = total === 1 ? "pedido" : "pedidos";
+    center.appendChild(val);
+    center.appendChild(lab);
+    figure.appendChild(center);
+
+    classes.forEach(function (c) {
+      var row = document.createElement("div");
+      row.className = "row";
+      var nameWrap = document.createElement("span");
+      nameWrap.className = "name-wrap";
+      var swatch = document.createElement("span");
+      swatch.className = "swatch";
+      swatch.style.background = c.color;
+      nameWrap.appendChild(swatch);
+      var nm = document.createElement("span");
+      nm.textContent = c.key;
+      nameWrap.appendChild(nm);
+      row.appendChild(nameWrap);
       var count = document.createElement("span");
       count.className = "count";
-      count.style.color = c.color;
       count.textContent = c.n + " · " + fmtPct(c.n, total);
-      item.appendChild(name);
-      item.appendChild(count);
-      labels.appendChild(item);
+      row.appendChild(count);
+      legend.appendChild(row);
     });
   }
+
+  function renderParetoChart(rows) {
+    var container = document.getElementById("pareto-chart");
+    var note = document.getElementById("pareto-note");
+    container.innerHTML = "";
+
+    if (!rows.length) {
+      var empty = document.createElement("div");
+      empty.className = "bar-empty";
+      empty.textContent = "Sin pedidos para los filtros seleccionados.";
+      container.appendChild(empty);
+      note.textContent = "";
+      return;
+    }
+
+    var stores = aggregateByStore(rows);
+    var total = rows.length;
+    var cum = 0;
+    var data = stores.map(function (s) {
+      var share = (s.total / total) * 100;
+      cum += share;
+      return { tienda: s.tienda, total: s.total, share: share, cum: cum };
+    });
+
+    var W = 1160, H = 380;
+    var marginTop = 20, marginRight = 26, marginBottom = 96, marginLeft = 40;
+    var innerW = W - marginLeft - marginRight;
+    var innerH = H - marginTop - marginBottom;
+    var n = data.length;
+    var band = innerW / n;
+    var barW = Math.min(24, band * 0.55);
+
+    function yFor(pct) { return marginTop + innerH * (1 - pct / 100); }
+    function xCenter(i) { return marginLeft + band * i + band / 2; }
+
+    var svg = svgEl("svg", { viewBox: "0 0 " + W + " " + H, class: "pareto-svg", role: "img", "aria-label": "Diagrama de Pareto de pedidos pendientes por tienda" });
+
+    [0, 20, 40, 60, 80, 100].forEach(function (pct) {
+      var y = yFor(pct);
+      var line = svgEl("line", { x1: marginLeft, x2: marginLeft + innerW, y1: y, y2: y });
+      line.style.stroke = pct === 80 ? "var(--text-muted)" : "var(--grid)";
+      line.style.strokeWidth = "1";
+      if (pct === 80) line.setAttribute("stroke-dasharray", "4 3");
+      svg.appendChild(line);
+
+      var lbl = svgEl("text", { x: marginLeft - 8, y: y + 3, "text-anchor": "end" });
+      lbl.style.fill = "var(--text-muted)";
+      lbl.style.font = "10px system-ui, sans-serif";
+      lbl.textContent = pct + "%";
+      svg.appendChild(lbl);
+    });
+
+    var lbl80 = svgEl("text", { x: marginLeft + innerW, y: yFor(80) - 6, "text-anchor": "end" });
+    lbl80.style.fill = "var(--text-secondary)";
+    lbl80.style.font = "10px system-ui, sans-serif";
+    lbl80.style.fontWeight = "600";
+    lbl80.textContent = "Corte 80%";
+    svg.appendChild(lbl80);
+
+    data.forEach(function (d, i) {
+      var x = xCenter(i) - barW / 2;
+      var y = yFor(d.share);
+      var h = Math.max(marginTop + innerH - y, 0);
+      var rect = svgEl("rect", { x: x, y: y, width: barW, height: h, rx: 4, ry: 4 });
+      rect.style.fill = "var(--accent)";
+      rect.tabIndex = 0;
+      rect.setAttribute("aria-label", d.tienda + ": " + d.total + " pedidos, " + d.share.toFixed(1) + "% del total");
+      attachTooltip(rect, "pedidos · " + d.tienda, String(d.total));
+      svg.appendChild(rect);
+
+      var labY = marginTop + innerH + 14;
+      var lab = svgEl("text", {
+        x: xCenter(i), y: labY,
+        "text-anchor": "end",
+        transform: "rotate(-40 " + xCenter(i) + " " + labY + ")"
+      });
+      lab.style.fill = "var(--text-secondary)";
+      lab.style.font = "10.5px system-ui, sans-serif";
+      lab.textContent = shortLabel(d.tienda);
+      svg.appendChild(lab);
+    });
+
+    var points = data.map(function (d, i) { return xCenter(i) + "," + yFor(d.cum); }).join(" ");
+    var poly = svgEl("polyline", { points: points, fill: "none", "stroke-linejoin": "round", "stroke-linecap": "round" });
+    poly.style.stroke = "var(--clase-2)";
+    poly.style.strokeWidth = "2";
+    svg.appendChild(poly);
+
+    data.forEach(function (d, i) {
+      var cx = xCenter(i), cy = yFor(d.cum);
+      var ring = svgEl("circle", { cx: cx, cy: cy, r: 5 });
+      ring.style.fill = "var(--surface)";
+      svg.appendChild(ring);
+      var dot = svgEl("circle", { cx: cx, cy: cy, r: 3.5 });
+      dot.style.fill = "var(--clase-2)";
+      dot.tabIndex = 0;
+      dot.setAttribute("aria-label", "Acumulado en " + d.tienda + ": " + d.cum.toFixed(1) + "%");
+      attachTooltip(dot, "acumulado · " + d.tienda, d.cum.toFixed(1) + "%");
+      svg.appendChild(dot);
+    });
+
+    container.appendChild(svg);
+
+    var cutoffIndex = -1;
+    for (var i = 0; i < data.length; i++) {
+      if (data[i].cum >= 80) { cutoffIndex = i; break; }
+    }
+    if (cutoffIndex === -1) cutoffIndex = data.length - 1;
+
+    note.textContent = "";
+    note.appendChild(document.createTextNode("Las "));
+    var strong = document.createElement("strong");
+    strong.textContent = (cutoffIndex + 1) + " de " + data.length + " tiendas";
+    note.appendChild(strong);
+    note.appendChild(document.createTextNode(" con más pendientes concentran el 80% del total filtrado."));
+  }
+
+  // ---------- Excel export ----------
+  var btnDownload = document.getElementById("btn-download");
+  var dlStatus = document.getElementById("dl-status");
+
+  function setDlStatus(text) { dlStatus.textContent = text || ""; }
+
+  function buildWorkbook(rows) {
+    var headers = ["Centro", "Tienda", "Pedido SEUS", "Clase", "Pedido SAP", "Fecha cita", "Días", "Estado"];
+    var aoa = [headers];
+    rows.forEach(function (r) {
+      aoa.push([
+        r.centro, r.tienda, r.seus, r.clase, r.sap,
+        fmtFecha(r.fecha), r.dias, BUCKET_BY_KEY[r.bucket].label
+      ]);
+    });
+    var ws = XLSX.utils.aoa_to_sheet(aoa);
+    ws["!cols"] = [
+      { wch: 8 }, { wch: 26 }, { wch: 20 }, { wch: 7 },
+      { wch: 14 }, { wch: 13 }, { wch: 7 }, { wch: 20 }
+    ];
+    ws["!autofilter"] = { ref: ws["!ref"] };
+    var wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Pendientes");
+    return wb;
+  }
+
+  btnDownload.addEventListener("click", function () {
+    if (btnDownload.disabled) return;
+    if (typeof XLSX === "undefined") {
+      setDlStatus("No se pudo cargar el generador de Excel");
+      setTimeout(function () { setDlStatus(""); }, 3000);
+      return;
+    }
+    btnDownload.disabled = true;
+    setDlStatus("Generando…");
+    try {
+      var wb = buildWorkbook(lastRenderedRows);
+      var filename = "pedidos_pendientes_calificar_" + lastRenderedRows.length + ".xlsx";
+      XLSX.writeFile(wb, filename);
+      setDlStatus("Descargado");
+    } catch (err) {
+      setDlStatus("No se pudo generar el archivo");
+    }
+    setTimeout(function () { setDlStatus(""); }, 2500);
+    btnDownload.disabled = false;
+  });
 
   function renderTable(rows) {
     var sorted = rows.slice().sort(function (a, b) {
@@ -895,6 +1241,7 @@
       if (typeof av === "string" && typeof bv === "string") return av.localeCompare(bv) * dir;
       return (av - bv) * dir;
     });
+    lastRenderedRows = sorted;
 
     Array.prototype.forEach.call(theadRow.querySelectorAll("button"), function (btn, i) {
       var col = COLUMNS[i];
@@ -945,3 +1292,5 @@
   render();
 })();
 </script>
+</body>
+</html>
