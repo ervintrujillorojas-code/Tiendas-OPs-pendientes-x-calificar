@@ -18,6 +18,9 @@
     --accent:      #2a78d6;
     --accent-soft: #cde2fb;
     --clase-2:     #eb6834;
+    --clase-3:     #1baf7a;
+    --clase-4:     #eda100;
+    --clase-5:     #e87ba4;
     --good:        #0ca30c;
     --warning:     #fab219;
     --serious:     #ec835a;
@@ -38,6 +41,9 @@
       --accent:      #3987e5;
       --accent-soft: #1c3a5c;
       --clase-2:     #d95926;
+      --clase-3:     #199e70;
+      --clase-4:     #c98500;
+      --clase-5:     #d55181;
       --good:        #0ca30c;
       --warning:     #fab219;
       --serious:     #ec835a;
@@ -58,6 +64,9 @@
     --accent:      #3987e5;
     --accent-soft: #1c3a5c;
     --clase-2:     #d95926;
+    --clase-3:     #199e70;
+    --clase-4:     #c98500;
+    --clase-5:     #d55181;
     --good:        #0ca30c;
     --warning:     #fab219;
     --serious:     #ec835a;
@@ -593,7 +602,7 @@
     <div style="display:flex; flex-direction:column; gap:12px;">
       <div class="card panel">
         <p class="panel-title">Pedidos por clase</p>
-        <p class="panel-sub">ZOPL vs. ZOPE</p>
+        <p class="panel-sub">Top 5 clases por volumen · resto agrupado en "Otros"</p>
         <div class="donut-wrap">
           <div class="donut-figure" id="clase-donut"></div>
           <div class="donut-legend" id="clase-legend"></div>
@@ -644,7 +653,7 @@
     <div class="table-empty" id="table-empty" style="display:none;">Ningún pedido coincide con los filtros seleccionados.</div>
   </div>
 
-  <footer>Fuente: Detalle pedidos pendientes por calificar tiendas.xlsx — 2866 registros, 6 centros calificadores · v82 · Publicado 10 sep 2026, 14:04</footer>
+  <footer>Fuente: Detalle pedidos pendientes por calificar tiendas.xlsx — 2866 registros, 6 centros calificadores · v83 · Publicado 10 sep 2026, 14:19</footer>
 
 </div>
 
@@ -694,6 +703,19 @@
     r.bucket = classify(r.dias);
   });
 
+  // ---------- clase categories: top 5 por volumen global + "Otros" ----------
+  // Identidad fija (calculada una sola vez sobre todo RECORDS) para que un
+  // filtro nunca "repinte" los colores según el ranking del subconjunto visible.
+  var CLASE_PALETTE = ["var(--accent)", "var(--clase-2)", "var(--clase-3)", "var(--clase-4)", "var(--clase-5)"];
+  var CLASE_OTROS_COLOR = "var(--text-muted)";
+  var claseCounts = {};
+  RECORDS.forEach(function (r) { claseCounts[r.clase] = (claseCounts[r.clase] || 0) + 1; });
+  var CLASE_TOP = Object.keys(claseCounts)
+    .sort(function (a, b) { return claseCounts[b] - claseCounts[a]; })
+    .slice(0, 5);
+  var CLASE_COLOR = {};
+  CLASE_TOP.forEach(function (c, i) { CLASE_COLOR[c] = CLASE_PALETTE[i]; });
+
   document.getElementById("meta-total").textContent = RECORDS.length;
   document.getElementById("meta-centros").textContent = new Set(RECORDS.map(function (r) { return r.centro; })).size;
 
@@ -719,8 +741,7 @@
 
   var selClase = document.getElementById("f-clase");
   selClase.appendChild(new Option("Todas las clases", ""));
-  selClase.appendChild(new Option("ZOPL", "ZOPL"));
-  selClase.appendChild(new Option("ZOPE", "ZOPE"));
+  uniqueSorted(RECORDS.map(function (r) { return r.clase; })).forEach(function (c) { selClase.appendChild(new Option(c, c)); });
 
   var selBucket = document.getElementById("f-bucket");
   selBucket.appendChild(new Option("Toda antigüedad", ""));
@@ -1007,14 +1028,15 @@
     figure.innerHTML = "";
     legend.innerHTML = "";
 
-    var zopl = rows.filter(function (r) { return r.clase === "ZOPL"; }).length;
-    var zope = rows.filter(function (r) { return r.clase === "ZOPE"; }).length;
-    var total = zopl + zope;
+    var counts = {};
+    rows.forEach(function (r) {
+      var key = CLASE_COLOR[r.clase] ? r.clase : "Otros";
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    var total = rows.length;
 
-    var classes = [
-      { key: "ZOPL", n: zopl, color: "var(--accent)" },
-      { key: "ZOPE", n: zope, color: "var(--clase-2)" }
-    ];
+    var classes = CLASE_TOP.map(function (c) { return { key: c, n: counts[c] || 0, color: CLASE_COLOR[c] }; });
+    if (counts["Otros"]) classes.push({ key: "Otros", n: counts["Otros"], color: CLASE_OTROS_COLOR });
 
     var size = 148, cx = size / 2, cy = size / 2, r = 56, sw = 26, gap = 2;
     var circumference = 2 * Math.PI * r;
