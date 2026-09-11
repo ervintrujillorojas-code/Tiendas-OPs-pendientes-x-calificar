@@ -139,6 +139,28 @@
     box-shadow: var(--shadow);
   }
 
+  /* tabs */
+  .tabs {
+    display: flex;
+    gap: 4px;
+    padding: 0 4px;
+    border-bottom: 1px solid var(--border);
+  }
+  .tab-btn {
+    font: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 10px 14px;
+    cursor: pointer;
+    margin-bottom: -1px;
+  }
+  .tab-btn:hover { color: var(--text-primary); }
+  .tab-btn.is-active { color: var(--accent); border-bottom-color: var(--accent); }
+
   /* filter bar */
   .filters {
     display: flex;
@@ -643,6 +665,11 @@
     </div>
   </div>
 
+  <div class="tabs" role="tablist">
+    <button class="tab-btn is-active" id="tab-detalle" type="button" role="tab" aria-selected="true">Detalle de pedidos</button>
+    <button class="tab-btn" id="tab-departamento" type="button" role="tab" aria-selected="false">Por departamento</button>
+  </div>
+
   <div class="card filters">
     <input type="search" id="f-search" placeholder="Buscar centro, ciudad, departamento o pedido…" aria-label="Buscar centro, ciudad, departamento o pedido">
     <div id="f-centro"></div>
@@ -655,6 +682,8 @@
     <div class="spacer"></div>
     <span class="filter-count" id="f-count">Mostrando 85 de 85 pedidos</span>
   </div>
+
+  <div id="view-detalle">
 
   <div class="kpi-grid">
     <div class="card kpi">
@@ -742,7 +771,37 @@
     <div class="table-empty" id="table-empty" style="display:none;">Ningún pedido coincide con los filtros seleccionados.</div>
   </div>
 
-  <footer>Fuente: Detalle pedidos pendientes por calificar tiendas.xlsx — 1128 registros, 9 centros calificadores · v89 · Publicado 11 sep 2026, 08:36</footer>
+  </div>
+
+  <div id="view-departamento" hidden>
+    <div class="card table-card">
+      <div class="table-header">
+        <div>
+          <h2>Servicios pendientes por departamento</h2>
+          <span class="table-header-sub">Refleja los filtros aplicados arriba · ordenado de mayor a menor</span>
+        </div>
+      </div>
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Departamento</th>
+              <th class="num">Total</th>
+              <th class="num">% del total</th>
+              <th class="num">A tiempo</th>
+              <th class="num">Vencido 1–7</th>
+              <th class="num">Vencido 8–30</th>
+              <th class="num">Crítico +30</th>
+            </tr>
+          </thead>
+          <tbody id="departamento-table-body"></tbody>
+        </table>
+      </div>
+      <div class="table-empty" id="departamento-table-empty" style="display:none;">Ningún pedido coincide con los filtros seleccionados.</div>
+    </div>
+  </div>
+
+  <footer>Fuente: Detalle pedidos pendientes por calificar tiendas.xlsx — 1128 registros, 9 centros calificadores · v90 · Publicado 11 sep 2026, 08:52</footer>
 
 </div>
 
@@ -1079,7 +1138,57 @@
     renderSummaryChart(filtered);
     renderParetoChart(filtered);
     renderTable(filtered);
+    renderDepartamentoTable(filtered);
   }
+
+  function renderDepartamentoTable(rows) {
+    var tbody = document.getElementById("departamento-table-body");
+    tbody.innerHTML = "";
+    document.getElementById("departamento-table-empty").style.display = rows.length ? "none" : "block";
+
+    var byDepto = {};
+    rows.forEach(function (r) {
+      var d = byDepto[r.departamento] || (byDepto[r.departamento] = {
+        departamento: r.departamento, total: 0,
+        counts: { a_tiempo: 0, vencido_1_7: 0, vencido_8_30: 0, critico: 0 }
+      });
+      d.total++;
+      d.counts[r.bucket]++;
+    });
+    var list = Object.keys(byDepto).map(function (k) { return byDepto[k]; });
+    list.sort(function (a, b) { return b.total - a.total; });
+    var total = rows.length;
+
+    list.forEach(function (d) {
+      var tr = document.createElement("tr");
+      appendCell(tr, d.departamento || "(sin departamento)");
+      appendCell(tr, d.total, true);
+      appendCell(tr, fmtPct(d.total, total), true, "cell-muted");
+      appendCell(tr, d.counts.a_tiempo, true);
+      appendCell(tr, d.counts.vencido_1_7, true);
+      appendCell(tr, d.counts.vencido_8_30, true);
+      appendCell(tr, d.counts.critico, true);
+      tbody.appendChild(tr);
+    });
+  }
+
+  // ---------- tabs ----------
+  var viewDetalle = document.getElementById("view-detalle");
+  var viewDepartamento = document.getElementById("view-departamento");
+  var tabDetalle = document.getElementById("tab-detalle");
+  var tabDepartamento = document.getElementById("tab-departamento");
+
+  function activarTab(tab) {
+    var esDetalle = tab === "detalle";
+    viewDetalle.hidden = !esDetalle;
+    viewDepartamento.hidden = esDetalle;
+    tabDetalle.classList.toggle("is-active", esDetalle);
+    tabDetalle.setAttribute("aria-selected", String(esDetalle));
+    tabDepartamento.classList.toggle("is-active", !esDetalle);
+    tabDepartamento.setAttribute("aria-selected", String(!esDetalle));
+  }
+  tabDetalle.addEventListener("click", function () { activarTab("detalle"); });
+  tabDepartamento.addEventListener("click", function () { activarTab("departamento"); });
 
   function renderKpis(rows) {
     var total = rows.length;
